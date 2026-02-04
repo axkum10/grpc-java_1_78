@@ -977,4 +977,254 @@ public class ClientCallsTest {
       };
     }
   }
+
+  // ==================== WaitForStreamAuth Tests ====================
+
+  @Test
+  public void asyncBidiStreamingCall_withWaitForStreamAuth_successAfterHeaders() throws Exception {
+    // Test that when waitForStreamAuth is enabled, onNext() blocks until headers are received
+    final CountDownLatch headersLatch = new CountDownLatch(1);
+    final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
+    
+    NoopClientCall<Integer, Integer> call = new NoopClientCall<Integer, Integer>() {
+      @Override
+      public void start(ClientCall.Listener<Integer> listener, Metadata headers) {
+        listenerCapture.set(listener);
+      }
+    };
+
+    StreamObserver<Integer> responseObserver = new NoopStreamObserver<>();
+    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
+    
+    StreamObserver<Integer> requestObserver = 
+        ClientCalls.asyncBidiStreamingCall(call, responseObserver, callOptions);
+    
+    // Start a thread that will try to send (should block)
+    final AtomicReference<Throwable> sendError = new AtomicReference<>();
+    final CountDownLatch sendComplete = new CountDownLatch(1);
+    
+    Thread sendThread = new Thread(() -> {
+      try {
+        requestObserver.onNext(1);
+        sendComplete.countDown();
+      } catch (Throwable t) {
+        sendError.set(t);
+        sendComplete.countDown();
+      }
+    });
+    sendThread.start();
+    
+    // Give it time to start blocking
+    Thread.sleep(100);
+    assertThat(sendComplete.getCount()).isEqualTo(1); // Still waiting
+    
+    // Now send headers
+    listenerCapture.get().onHeaders(new Metadata());
+    
+    // Wait for send to complete
+    assertTrue("Send should complete after headers", sendComplete.await(1, TimeUnit.SECONDS));
+    assertNull("No error should occur", sendError.get());
+  }
+
+  @Test
+  public void asyncBidiStreamingCall_withWaitForStreamAuth_failsBeforeHeaders() throws Exception {
+    // Test that when waitForStreamAuth is enabled and server closes with error,
+    // onNext() throws the error
+    final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
+    
+    NoopClientCall<Integer, Integer> call = new NoopClientCall<Integer, Integer>() {
+      @Override
+      public void start(ClientCall.Listener<Integer> listener, Metadata headers) {
+        listenerCapture.set(listener);
+      }
+    };
+
+    final AtomicReference<Throwable> receivedError = new AtomicReference<>();
+    StreamObserver<Integer> responseObserver = new StreamObserver<Integer>() {
+      @Override public void onNext(Integer value) {}
+      @Override public void onError(Throwable t) { receivedError.set(t); }
+      @Override public void onCompleted() {}
+    };
+    
+    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
+    
+    StreamObserver<Integer> requestObserver = 
+        ClientCalls.asyncBidiStreamingCall(call, responseObserver, callOptions);
+    
+    // Start a thread that will try to send (should block then fail)
+    final AtomicReference<Throwable> sendError = new AtomicReference<>();
+    final CountDownLatch sendComplete = new CountDownLatch(1);
+    
+    Thread sendThread = new Thread(() -> {
+      try {
+        requestObserver.onNext(1);
+      } catch (Throwable t) {
+        sendError.set(t);
+      }
+      sendComplete.countDown();
+    });
+    sendThread.start();
+    
+    // Give it time to start blocking
+    Thread.sleep(100);
+    
+    // Close with UNAUTHENTICATED error
+    listenerCapture.get().onClose(Status.UNAUTHENTICATED.withDescription("Invalid JWT"), 
+        new Metadata());
+    
+    // Wait for send to complete (with error)
+    assertTrue("Send should complete after error", sendComplete.await(1, TimeUnit.SECONDS));
+    assertNotNull("Error should be thrown", sendError.get());
+    assertThat(sendError.get()).isInstanceOf(StatusRuntimeException.class);
+    assertThat(((StatusRuntimeException) sendError.get()).getStatus().getCode())
+        .isEqualTo(Status.Code.UNAUTHENTICATED);
+  }
+
+  @Test
+  public void asyncBidiStreamingCall_withoutWaitForStreamAuth_doesNotBlock() throws Exception {
+    // Test that without waitForStreamAuth, onNext() does not block
+    final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
+    final List<Integer> sentMessages = new ArrayList<>();
+    
+    NoopClientCall<Integer, Integer> call = new NoopClientCall<Integer, Integer>() {
+      @Override
+      public void start(ClientCall.Listener<Integer> listener, Metadata headers) {
+        listenerCapture.set(listener);
+      }
+      
+      @Override
+      public void sendMessage(Integer message) {
+        sentMessages.add(message);
+      }
+    };
+
+    StreamObserver<Integer> responseObserver = new NoopStreamObserver<>();
+    
+    // Without waitForStreamAuth (default behavior)
+    StreamObserver<Integer> requestObserver = 
+        ClientCalls.asyncBidiStreamingCall(call, responseObserver);
+    
+    // Should be able to send immediately without blocking
+    requestObserver.onNext(1);
+    requestObserver.onNext(2);
+    
+    // Messages should be sent immediately
+    assertThat(sentMessages).containsExactly(1, 2);
+  }
+
+  @Test
+  public void asyncClientStreamingCall_withWaitForStreamAuth_successAfterHeaders() throws Exception {
+    final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
+    
+    NoopClientCall<Integer, Integer> call = new NoopClientCall<Integer, Integer>() {
+      @Override
+      public void start(ClientCall.Listener<Integer> listener, Metadata headers) {
+        listenerCapture.set(listener);
+      }
+    };
+
+    StreamObserver<Integer> responseObserver = new NoopStreamObserver<>();
+    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
+    
+    StreamObserver<Integer> requestObserver = 
+        ClientCalls.asyncClientStreamingCall(call, responseObserver, callOptions);
+    
+    // Start a thread that will try to send (should block)
+    final CountDownLatch sendComplete = new CountDownLatch(1);
+    
+    Thread sendThread = new Thread(() -> {
+      requestObserver.onNext(1);
+      sendComplete.countDown();
+    });
+    sendThread.start();
+    
+    // Give it time to start blocking
+    Thread.sleep(100);
+    assertThat(sendComplete.getCount()).isEqualTo(1); // Still waiting
+    
+    // Now send headers
+    listenerCapture.get().onHeaders(new Metadata());
+    
+    // Wait for send to complete
+    assertTrue("Send should complete after headers", sendComplete.await(1, TimeUnit.SECONDS));
+  }
+
+  @Test
+  public void asyncBidiStreamingCall_withWaitForStreamAuth_interruptedWhileWaiting() 
+      throws Exception {
+    final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
+    
+    NoopClientCall<Integer, Integer> call = new NoopClientCall<Integer, Integer>() {
+      @Override
+      public void start(ClientCall.Listener<Integer> listener, Metadata headers) {
+        listenerCapture.set(listener);
+      }
+    };
+
+    StreamObserver<Integer> responseObserver = new NoopStreamObserver<>();
+    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
+    
+    StreamObserver<Integer> requestObserver = 
+        ClientCalls.asyncBidiStreamingCall(call, responseObserver, callOptions);
+    
+    final AtomicReference<Throwable> sendError = new AtomicReference<>();
+    final CountDownLatch sendComplete = new CountDownLatch(1);
+    
+    Thread sendThread = new Thread(() -> {
+      try {
+        requestObserver.onNext(1);
+      } catch (Throwable t) {
+        sendError.set(t);
+      }
+      sendComplete.countDown();
+    });
+    sendThread.start();
+    
+    // Give it time to start blocking
+    Thread.sleep(100);
+    
+    // Interrupt the thread
+    sendThread.interrupt();
+    
+    assertTrue("Send should complete after interrupt", sendComplete.await(1, TimeUnit.SECONDS));
+    assertNotNull("Error should be thrown", sendError.get());
+    assertThat(sendError.get()).isInstanceOf(StatusRuntimeException.class);
+    assertThat(((StatusRuntimeException) sendError.get()).getStatus().getCode())
+        .isEqualTo(Status.Code.CANCELLED);
+  }
+
+  @Test
+  public void asyncBidiStreamingCall_withWaitForStreamAuth_multipleSendsAfterHeaders() 
+      throws Exception {
+    final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
+    final List<Integer> sentMessages = new ArrayList<>();
+    
+    NoopClientCall<Integer, Integer> call = new NoopClientCall<Integer, Integer>() {
+      @Override
+      public void start(ClientCall.Listener<Integer> listener, Metadata headers) {
+        listenerCapture.set(listener);
+      }
+      
+      @Override
+      public void sendMessage(Integer message) {
+        sentMessages.add(message);
+      }
+    };
+
+    StreamObserver<Integer> responseObserver = new NoopStreamObserver<>();
+    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
+    
+    StreamObserver<Integer> requestObserver = 
+        ClientCalls.asyncBidiStreamingCall(call, responseObserver, callOptions);
+    
+    // Send headers first
+    listenerCapture.get().onHeaders(new Metadata());
+    
+    // Now multiple sends should work without blocking
+    requestObserver.onNext(1);
+    requestObserver.onNext(2);
+    requestObserver.onNext(3);
+    
+    assertThat(sentMessages).containsExactly(1, 2, 3);
+  }
 }

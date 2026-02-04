@@ -72,6 +72,7 @@ public class CallOptionsTest {
     assertThat(CallOptions.DEFAULT.getCredentials()).isNull();
     assertThat(CallOptions.DEFAULT.getCompressor()).isNull();
     assertThat(CallOptions.DEFAULT.isWaitForReady()).isFalse();
+    assertThat(CallOptions.DEFAULT.isWaitForStreamAuth()).isFalse();
     assertThat(CallOptions.DEFAULT.getStreamTracerFactories()).isEmpty();
   }
 
@@ -263,6 +264,38 @@ public class CallOptionsTest {
     assertNull(CallOptions.DEFAULT.getWaitForReady());
     assertSame(CallOptions.DEFAULT.withWaitForReady().getWaitForReady(), Boolean.TRUE);
     assertSame(CallOptions.DEFAULT.withoutWaitForReady().getWaitForReady(), Boolean.FALSE);
+  }
+
+  @Test
+  public void withAndWithoutWaitForStreamAuth() {
+    assertThat(CallOptions.DEFAULT.isWaitForStreamAuth()).isFalse();
+    assertThat(CallOptions.DEFAULT.withWaitForStreamAuth().isWaitForStreamAuth()).isTrue();
+    assertThat(CallOptions.DEFAULT.withWaitForStreamAuth().withoutWaitForStreamAuth()
+        .isWaitForStreamAuth()).isFalse();
+  }
+
+  @Test
+  public void getWaitForStreamAuth() {
+    assertNull(CallOptions.DEFAULT.getWaitForStreamAuth());
+    assertSame(CallOptions.DEFAULT.withWaitForStreamAuth().getWaitForStreamAuth(), Boolean.TRUE);
+    assertSame(CallOptions.DEFAULT.withoutWaitForStreamAuth().getWaitForStreamAuth(), Boolean.FALSE);
+  }
+
+  @Test
+  public void waitForStreamAuthDoesNotMutateOriginal() {
+    CallOptions defaultOpt = CallOptions.DEFAULT;
+    CallOptions opt1 = defaultOpt.withWaitForStreamAuth();
+    CallOptions opt2 = opt1.withoutWaitForStreamAuth();
+
+    assertThat(defaultOpt.isWaitForStreamAuth()).isFalse();
+    assertThat(opt1.isWaitForStreamAuth()).isTrue();
+    assertThat(opt2.isWaitForStreamAuth()).isFalse();
+  }
+
+  @Test
+  public void toStringContainsWaitForStreamAuth() {
+    String actual = CallOptions.DEFAULT.withWaitForStreamAuth().toString();
+    assertThat(actual).contains("waitForStreamAuth=true");
   }
 
   // Only used in noStrayModifications()

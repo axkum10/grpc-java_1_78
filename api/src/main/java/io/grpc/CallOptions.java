@@ -77,6 +77,12 @@ public final class CallOptions {
   @Nullable
   private final Boolean waitForReady;
 
+  /**
+   * Wait for stream authentication to complete before allowing sends.
+   */
+  @Nullable
+  private final Boolean waitForStreamAuth;
+
   @Nullable
   private final Integer maxInboundMessageSize;
   @Nullable
@@ -93,6 +99,7 @@ public final class CallOptions {
     this.customOptions = builder.customOptions;
     this.streamTracerFactories = builder.streamTracerFactories;
     this.waitForReady = builder.waitForReady;
+    this.waitForStreamAuth = builder.waitForStreamAuth;
     this.maxInboundMessageSize = builder.maxInboundMessageSize;
     this.maxOutboundMessageSize = builder.maxOutboundMessageSize;
     this.onReadyThreshold = builder.onReadyThreshold;
@@ -108,6 +115,7 @@ public final class CallOptions {
     // Unmodifiable list
     List<ClientStreamTracer.Factory> streamTracerFactories;
     Boolean waitForReady;
+    Boolean waitForStreamAuth;
     Integer maxInboundMessageSize;
     Integer maxOutboundMessageSize;
     Integer onReadyThreshold;
@@ -212,6 +220,58 @@ public final class CallOptions {
     Builder builder = toBuilder(this);
     builder.waitForReady = Boolean.FALSE;
     return builder.build();
+  }
+
+  /**
+   * Enables 'wait for stream auth' for streaming calls. When enabled, the client will block
+   * until the server sends response headers before allowing the application to send messages.
+   * This is useful for stream-level authentication where the server validates credentials
+   * (e.g., JWT) before accepting messages.
+   *
+   * <p>If authentication fails, the client will receive an error before any messages are sent,
+   * preventing wasted requests.
+   *
+   * <p>Note: This requires the server to explicitly send headers after authentication succeeds.
+   * If the server does not send early headers, the call will block until timeout or the first
+   * response message.
+   *
+   */
+  @ExperimentalApi("https://github.com/grpc/grpc-java/issues/12628")
+  public CallOptions withWaitForStreamAuth() {
+    Builder builder = toBuilder(this);
+    builder.waitForStreamAuth = Boolean.TRUE;
+    return builder.build();
+  }
+
+  /**
+   * Disables 'wait for stream auth' feature for the call.
+   * This method should be rarely used because the default is without 'wait for stream auth'.
+   *
+   * @since 1.70.0
+   */
+  @ExperimentalApi("https://github.com/grpc/grpc-java/issues/12628")
+  public CallOptions withoutWaitForStreamAuth() {
+    Builder builder = toBuilder(this);
+    builder.waitForStreamAuth = Boolean.FALSE;
+    return builder.build();
+  }
+
+  /**
+   * Returns whether 'wait for stream auth' option is enabled for the call.
+   *
+   * @since 1.70.0
+   */
+  @ExperimentalApi("https://github.com/grpc/grpc-java/issues/12628")
+  public boolean isWaitForStreamAuth() {
+    return Boolean.TRUE.equals(waitForStreamAuth);
+  }
+
+  /**
+   * Returns the internal wait for stream auth value, may be null.
+   */
+  @Nullable
+  Boolean getWaitForStreamAuth() {
+    return waitForStreamAuth;
   }
 
   /**
@@ -517,6 +577,7 @@ public final class CallOptions {
     builder.customOptions = other.customOptions;
     builder.streamTracerFactories = other.streamTracerFactories;
     builder.waitForReady = other.waitForReady;
+    builder.waitForStreamAuth = other.waitForStreamAuth;
     builder.maxInboundMessageSize = other.maxInboundMessageSize;
     builder.maxOutboundMessageSize = other.maxOutboundMessageSize;
     builder.onReadyThreshold = other.onReadyThreshold;
@@ -533,6 +594,7 @@ public final class CallOptions {
         .add("compressorName", compressorName)
         .add("customOptions", Arrays.deepToString(customOptions))
         .add("waitForReady", isWaitForReady())
+        .add("waitForStreamAuth", isWaitForStreamAuth())
         .add("maxInboundMessageSize", maxInboundMessageSize)
         .add("maxOutboundMessageSize", maxOutboundMessageSize)
         .add("onReadyThreshold", onReadyThreshold)

@@ -40,10 +40,12 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -112,7 +114,35 @@ public final class ClientCalls {
       ClientCall<ReqT, RespT> call,
       StreamObserver<RespT> responseObserver) {
     checkNotNull(responseObserver, "responseObserver");
-    return asyncStreamingRequestCall(call, responseObserver, false);
+    return asyncStreamingRequestCall(call, responseObserver, false, false);
+  }
+
+  /**
+   * Executes a client-streaming call returning a {@link StreamObserver} for the request messages.
+   * The {@code call} should not be already started.  After calling this method, {@code call}
+   * should no longer be used.
+   *
+   * <p>If the provided {@code responseObserver} is an instance of {@link ClientResponseObserver},
+   * {@code beforeStart()} will be called.
+   *
+   * <p>If {@code callOptions.isWaitForStreamAuth()} is true, the returned StreamObserver will
+   * block on {@code onNext()} until response headers are received from the server, indicating
+   * that stream-level authentication has completed.
+   *
+   * @param call the client call
+   * @param responseObserver the observer for responses
+   * @param callOptions the call options which may include waitForStreamAuth
+   * @return request stream observer. It will extend {@link ClientCallStreamObserver}
+   * @since 1.70.0
+   */
+  @ExperimentalApi("https://github.com/grpc/grpc-java/issues/12628")
+  public static <ReqT, RespT> StreamObserver<ReqT> asyncClientStreamingCall(
+      ClientCall<ReqT, RespT> call,
+      StreamObserver<RespT> responseObserver,
+      CallOptions callOptions) {
+    checkNotNull(responseObserver, "responseObserver");
+    checkNotNull(callOptions, "callOptions");
+    return asyncStreamingRequestCall(call, responseObserver, false, callOptions.isWaitForStreamAuth());
   }
 
   /**
@@ -127,7 +157,34 @@ public final class ClientCalls {
   public static <ReqT, RespT> StreamObserver<ReqT> asyncBidiStreamingCall(
       ClientCall<ReqT, RespT> call, StreamObserver<RespT> responseObserver) {
     checkNotNull(responseObserver, "responseObserver");
-    return asyncStreamingRequestCall(call, responseObserver, true);
+    return asyncStreamingRequestCall(call, responseObserver, true, false);
+  }
+
+  /**
+   * Executes a bidirectional-streaming call.  The {@code call} should not be already started.
+   * After calling this method, {@code call} should no longer be used.
+   *
+   * <p>If the provided {@code responseObserver} is an instance of {@link ClientResponseObserver},
+   * {@code beforeStart()} will be called.
+   *
+   * <p>If {@code callOptions.isWaitForStreamAuth()} is true, the returned StreamObserver will
+   * block on {@code onNext()} until response headers are received from the server, indicating
+   * that stream-level authentication has completed.
+   *
+   * @param call the client call
+   * @param responseObserver the observer for responses
+   * @param callOptions the call options which may include waitForStreamAuth
+   * @return request stream observer. It will extend {@link ClientCallStreamObserver}
+   * @since 1.70.0
+   */
+  @ExperimentalApi("https://github.com/grpc/grpc-java/issues/12628")
+  public static <ReqT, RespT> StreamObserver<ReqT> asyncBidiStreamingCall(
+      ClientCall<ReqT, RespT> call,
+      StreamObserver<RespT> responseObserver,
+      CallOptions callOptions) {
+    checkNotNull(responseObserver, "responseObserver");
+    checkNotNull(callOptions, "callOptions");
+    return asyncStreamingRequestCall(call, responseObserver, true, callOptions.isWaitForStreamAuth());
   }
 
   /**
@@ -401,7 +458,7 @@ public final class ClientCalls {
         req,
         new StreamObserverToCallListenerAdapter<>(
             responseObserver,
-            new CallToStreamObserverAdapter<>(call, streamingResponse)));
+            new CallToStreamObserverAdapter<>(call, streamingResponse, false)));
   }
 
   private static <ReqT, RespT> void asyncUnaryRequestCall(
@@ -420,12 +477,14 @@ public final class ClientCalls {
   private static <ReqT, RespT> StreamObserver<ReqT> asyncStreamingRequestCall(
       ClientCall<ReqT, RespT> call,
       StreamObserver<RespT> responseObserver,
-      boolean streamingResponse) {
+      boolean streamingResponse,
+      boolean waitForStreamAuth) {
     CallToStreamObserverAdapter<ReqT> adapter = new CallToStreamObserverAdapter<>(
-        call, streamingResponse);
-    startCall(
-        call,
-        new StreamObserverToCallListenerAdapter<>(responseObserver, adapter));
+        call, streamingResponse, waitForStreamAuth);
+    StreamObserverToCallListenerAdapter<ReqT, RespT> listener =
+        new StreamObserverToCallListenerAdapter<>(responseObserver, adapter);
+    adapter.setListener(listener);
+    startCall(call, listener);
     return adapter;
   }
 
@@ -438,6 +497,20 @@ public final class ClientCalls {
 
   private abstract static class StartableListener<T> extends ClientCall.Listener<T> {
     abstract void onStart();
+    
+    /** Called to signal that headers have been received. */
+    void onHeadersReceived() {}
+    
+    /** Returns true if the stream has been closed with an error. */
+    boolean hasStreamError() {
+      return false;
+    }
+    
+    /** Returns the error status if stream has error, null otherwise. */
+    @Nullable
+    StatusRuntimeException getStreamError() {
+      return null;
+    }
   }
 
   private static final class CallToStreamObserverAdapter<ReqT>
@@ -445,26 +518,81 @@ public final class ClientCalls {
     private boolean frozen;
     private final ClientCall<ReqT, ?> call;
     private final boolean streamingResponse;
+    private final boolean waitForStreamAuth;
+    private final CountDownLatch headersReceivedLatch;
     private Runnable onReadyHandler;
     private int initialRequest = 1;
     private boolean autoRequestEnabled = true;
     private boolean aborted = false;
     private boolean completed = false;
+    private volatile StartableListener<?> listener;
 
     // Non private to avoid synthetic class
-    CallToStreamObserverAdapter(ClientCall<ReqT, ?> call, boolean streamingResponse) {
+    CallToStreamObserverAdapter(ClientCall<ReqT, ?> call, boolean streamingResponse,
+        boolean waitForStreamAuth) {
       this.call = call;
       this.streamingResponse = streamingResponse;
+      this.waitForStreamAuth = waitForStreamAuth;
+      this.headersReceivedLatch = waitForStreamAuth ? new CountDownLatch(1) : null;
+    }
+
+    void setListener(StartableListener<?> listener) {
+      this.listener = listener;
+    }
+
+    /** Called when headers are received from the server. */
+    void signalHeadersReceived() {
+      if (headersReceivedLatch != null) {
+        headersReceivedLatch.countDown();
+      }
     }
 
     private void freeze() {
       this.frozen = true;
     }
 
+    /**
+     * Waits for headers to be received if waitForStreamAuth is enabled.
+     * Throws StatusRuntimeException if the stream is closed with an error before headers arrive.
+     */
+    private void awaitHeadersIfNeeded() {
+      if (!waitForStreamAuth || headersReceivedLatch == null) {
+        return;
+      }
+      
+      try {
+        // Wait for headers. If the stream closes with error before headers,
+        // the latch will be released and we check for stream error.
+        while (!headersReceivedLatch.await(100, TimeUnit.MILLISECONDS)) {
+          // Check if stream was closed with error
+          if (listener != null && listener.hasStreamError()) {
+            StatusRuntimeException error = listener.getStreamError();
+            if (error != null) {
+              throw error;
+            }
+          }
+        }
+        // Headers received, but also check if there was a race with stream error
+        if (listener != null && listener.hasStreamError()) {
+          StatusRuntimeException error = listener.getStreamError();
+          if (error != null) {
+            throw error;
+          }
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw Status.CANCELLED
+            .withDescription("Interrupted while waiting for stream authentication")
+            .withCause(e)
+            .asRuntimeException();
+      }
+    }
+
     @Override
     public void onNext(ReqT value) {
       checkState(!aborted, "Stream was terminated by error, no further calls are allowed");
       checkState(!completed, "Stream is already completed, no further calls are allowed");
+      awaitHeadersIfNeeded();
       call.sendMessage(value);
     }
 
@@ -537,6 +665,7 @@ public final class ClientCalls {
     private final StreamObserver<RespT> observer;
     private final CallToStreamObserverAdapter<ReqT> adapter;
     private boolean firstResponseReceived;
+    private volatile StatusRuntimeException streamError;
 
     // Non private to avoid synthetic class
     StreamObserverToCallListenerAdapter(
@@ -555,6 +684,24 @@ public final class ClientCalls {
 
     @Override
     public void onHeaders(Metadata headers) {
+      // Signal that headers have been received - authentication succeeded
+      adapter.signalHeadersReceived();
+    }
+
+    @Override
+    void onHeadersReceived() {
+      adapter.signalHeadersReceived();
+    }
+
+    @Override
+    boolean hasStreamError() {
+      return streamError != null;
+    }
+
+    @Override
+    @Nullable
+    StatusRuntimeException getStreamError() {
+      return streamError;
     }
 
     @Override
@@ -578,7 +725,11 @@ public final class ClientCalls {
       if (status.isOk()) {
         observer.onCompleted();
       } else {
-        observer.onError(status.asRuntimeException(trailers));
+        // Store the error so waiting threads can see it
+        streamError = status.asRuntimeException(trailers);
+        // Also signal headers received to unblock any waiting threads
+        adapter.signalHeadersReceived();
+        observer.onError(streamError);
       }
     }
 
