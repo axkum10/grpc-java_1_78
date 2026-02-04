@@ -142,7 +142,8 @@ public final class ClientCalls {
       CallOptions callOptions) {
     checkNotNull(responseObserver, "responseObserver");
     checkNotNull(callOptions, "callOptions");
-    return asyncStreamingRequestCall(call, responseObserver, false, callOptions.isWaitForStreamAuth());
+    return asyncStreamingRequestCall(
+        call, responseObserver, false, callOptions.isWaitForStreamAuth());
   }
 
   /**
@@ -184,7 +185,8 @@ public final class ClientCalls {
       CallOptions callOptions) {
     checkNotNull(responseObserver, "responseObserver");
     checkNotNull(callOptions, "callOptions");
-    return asyncStreamingRequestCall(call, responseObserver, true, callOptions.isWaitForStreamAuth());
+    return asyncStreamingRequestCall(
+        call, responseObserver, true, callOptions.isWaitForStreamAuth());
   }
 
   /**

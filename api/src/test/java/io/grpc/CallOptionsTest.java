@@ -277,8 +277,10 @@ public class CallOptionsTest {
   @Test
   public void getWaitForStreamAuth() {
     assertNull(CallOptions.DEFAULT.getWaitForStreamAuth());
-    assertSame(CallOptions.DEFAULT.withWaitForStreamAuth().getWaitForStreamAuth(), Boolean.TRUE);
-    assertSame(CallOptions.DEFAULT.withoutWaitForStreamAuth().getWaitForStreamAuth(), Boolean.FALSE);
+    assertSame(CallOptions.DEFAULT.withWaitForStreamAuth().getWaitForStreamAuth(),
+        Boolean.TRUE);
+    assertSame(CallOptions.DEFAULT.withoutWaitForStreamAuth().getWaitForStreamAuth(),
+        Boolean.FALSE);
   }
 
   @Test

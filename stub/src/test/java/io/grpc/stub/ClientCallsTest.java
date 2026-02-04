@@ -1041,9 +1041,19 @@ public class ClientCallsTest {
 
     final AtomicReference<Throwable> receivedError = new AtomicReference<>();
     StreamObserver<Integer> responseObserver = new StreamObserver<Integer>() {
-      @Override public void onNext(Integer value) {}
-      @Override public void onError(Throwable t) { receivedError.set(t); }
-      @Override public void onCompleted() {}
+
+      @Override
+      public void onNext(Integer value) {
+      }
+
+      @Override
+      public void onError(Throwable t) {
+        receivedError.set(t);
+      }
+
+      @Override
+      public void onCompleted() {
+      }
     };
     
     CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
@@ -1113,7 +1123,8 @@ public class ClientCallsTest {
   }
 
   @Test
-  public void asyncClientStreamingCall_withWaitForStreamAuth_successAfterHeaders() throws Exception {
+  public void asyncClientStreamingCall_withWaitForStreamAuth_successAfterHeaders()
+      throws Exception {
     final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
     
     NoopClientCall<Integer, Integer> call = new NoopClientCall<Integer, Integer>() {
