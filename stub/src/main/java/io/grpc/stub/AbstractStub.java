@@ -272,6 +272,16 @@ public abstract class AbstractStub<S extends AbstractStub<S>> {
   }
 
   /**
+   * Returns a new stub that waits for stream authentication before allowing requests to be sent.
+   *
+   * @since 1.70.0
+   */
+  @ExperimentalApi("https://github.com/grpc/grpc-java/issues/12628")
+  public final S withWaitForStreamAuth() {
+    return build(channel, callOptions.withWaitForStreamAuth());
+  }
+
+  /**
    * A factory class for stub.
    *
    * @since 1.26.0
