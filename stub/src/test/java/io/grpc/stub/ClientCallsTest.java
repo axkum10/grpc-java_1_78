@@ -1041,19 +1041,9 @@ public class ClientCallsTest {
 
     final AtomicReference<Throwable> receivedError = new AtomicReference<>();
     StreamObserver<Integer> responseObserver = new StreamObserver<Integer>() {
-
-      @Override
-      public void onNext(Integer value) {
-      }
-
-      @Override
-      public void onError(Throwable t) {
-        receivedError.set(t);
-      }
-
-      @Override
-      public void onCompleted() {
-      }
+      @Override public void onNext(Integer value) {}
+      @Override public void onError(Throwable t) { receivedError.set(t); }
+      @Override public void onCompleted() {}
     };
     
     CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
