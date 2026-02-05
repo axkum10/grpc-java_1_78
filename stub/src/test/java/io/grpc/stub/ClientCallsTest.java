@@ -978,11 +978,11 @@ public class ClientCallsTest {
     }
   }
 
-  // ==================== WaitForStreamAuth Tests ====================
+  // ==================== WaitForStreamFunctionalReady Tests ====================
 
   @Test
-  public void asyncBidiStreamingCall_withWaitForStreamAuth_successAfterHeaders() throws Exception {
-    // Test that when waitForStreamAuth is enabled, onNext() blocks until headers are received
+  public void asyncBidiStreamingCall_withWaitForStreamFunctionalReady_successAfterHeaders() throws Exception {
+    // Test that when waitForStreamFunctionalReady is enabled, onNext() blocks until headers are received
     final CountDownLatch headersLatch = new CountDownLatch(1);
     final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
     
@@ -994,7 +994,7 @@ public class ClientCallsTest {
     };
 
     StreamObserver<Integer> responseObserver = new NoopStreamObserver<>();
-    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
+    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamFunctionalReady();
     
     StreamObserver<Integer> requestObserver = 
         ClientCalls.asyncBidiStreamingCall(call, responseObserver, callOptions);
@@ -1027,8 +1027,8 @@ public class ClientCallsTest {
   }
 
   @Test
-  public void asyncBidiStreamingCall_withWaitForStreamAuth_failsBeforeHeaders() throws Exception {
-    // Test that when waitForStreamAuth is enabled and server closes with error,
+  public void asyncBidiStreamingCall_withWaitForStreamFunctionalReady_failsBeforeHeaders() throws Exception {
+    // Test that when waitForStreamFunctionalReady is enabled and server closes with error,
     // onNext() throws the error
     final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
     
@@ -1046,7 +1046,7 @@ public class ClientCallsTest {
       @Override public void onCompleted() {}
     };
     
-    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
+    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamFunctionalReady();
     
     StreamObserver<Integer> requestObserver = 
         ClientCalls.asyncBidiStreamingCall(call, responseObserver, callOptions);
@@ -1081,8 +1081,8 @@ public class ClientCallsTest {
   }
 
   @Test
-  public void asyncBidiStreamingCall_withoutWaitForStreamAuth_doesNotBlock() throws Exception {
-    // Test that without waitForStreamAuth, onNext() does not block
+  public void asyncBidiStreamingCall_withoutWaitForStreamFunctionalReady_doesNotBlock() throws Exception {
+    // Test that without waitForStreamFunctionalReady, onNext() does not block
     final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
     final List<Integer> sentMessages = new ArrayList<>();
     
@@ -1100,7 +1100,7 @@ public class ClientCallsTest {
 
     StreamObserver<Integer> responseObserver = new NoopStreamObserver<>();
     
-    // Without waitForStreamAuth (default behavior)
+    // Without waitForStreamFunctionalReady (default behavior)
     StreamObserver<Integer> requestObserver = 
         ClientCalls.asyncBidiStreamingCall(call, responseObserver);
     
@@ -1113,7 +1113,7 @@ public class ClientCallsTest {
   }
 
   @Test
-  public void asyncClientStreamingCall_withWaitForStreamAuth_successAfterHeaders()
+  public void asyncClientStreamingCall_withWaitForStreamFunctionalReady_successAfterHeaders()
       throws Exception {
     final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
     
@@ -1125,7 +1125,7 @@ public class ClientCallsTest {
     };
 
     StreamObserver<Integer> responseObserver = new NoopStreamObserver<>();
-    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
+    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamFunctionalReady();
     
     StreamObserver<Integer> requestObserver = 
         ClientCalls.asyncClientStreamingCall(call, responseObserver, callOptions);
@@ -1151,7 +1151,7 @@ public class ClientCallsTest {
   }
 
   @Test
-  public void asyncBidiStreamingCall_withWaitForStreamAuth_interruptedWhileWaiting() 
+  public void asyncBidiStreamingCall_withWaitForStreamFunctionalReady_interruptedWhileWaiting() 
       throws Exception {
     final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
     
@@ -1163,7 +1163,7 @@ public class ClientCallsTest {
     };
 
     StreamObserver<Integer> responseObserver = new NoopStreamObserver<>();
-    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
+    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamFunctionalReady();
     
     StreamObserver<Integer> requestObserver = 
         ClientCalls.asyncBidiStreamingCall(call, responseObserver, callOptions);
@@ -1195,7 +1195,7 @@ public class ClientCallsTest {
   }
 
   @Test
-  public void asyncBidiStreamingCall_withWaitForStreamAuth_multipleSendsAfterHeaders() 
+  public void asyncBidiStreamingCall_withWaitForStreamFunctionalReady_multipleSendsAfterHeaders() 
       throws Exception {
     final AtomicReference<ClientCall.Listener<Integer>> listenerCapture = new AtomicReference<>();
     final List<Integer> sentMessages = new ArrayList<>();
@@ -1213,7 +1213,7 @@ public class ClientCallsTest {
     };
 
     StreamObserver<Integer> responseObserver = new NoopStreamObserver<>();
-    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamAuth();
+    CallOptions callOptions = CallOptions.DEFAULT.withWaitForStreamFunctionalReady();
     
     StreamObserver<Integer> requestObserver = 
         ClientCalls.asyncBidiStreamingCall(call, responseObserver, callOptions);

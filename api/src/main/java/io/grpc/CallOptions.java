@@ -78,10 +78,10 @@ public final class CallOptions {
   private final Boolean waitForReady;
 
   /**
-   * Wait for stream authentication to complete before allowing sends.
+   * Wait for stream functional readiness before allowing sends.
    */
   @Nullable
-  private final Boolean waitForStreamAuth;
+  private final Boolean waitForStreamFunctionalReady;
 
   @Nullable
   private final Integer maxInboundMessageSize;
@@ -99,7 +99,7 @@ public final class CallOptions {
     this.customOptions = builder.customOptions;
     this.streamTracerFactories = builder.streamTracerFactories;
     this.waitForReady = builder.waitForReady;
-    this.waitForStreamAuth = builder.waitForStreamAuth;
+    this.waitForStreamFunctionalReady = builder.waitForStreamFunctionalReady;
     this.maxInboundMessageSize = builder.maxInboundMessageSize;
     this.maxOutboundMessageSize = builder.maxOutboundMessageSize;
     this.onReadyThreshold = builder.onReadyThreshold;
@@ -115,7 +115,7 @@ public final class CallOptions {
     // Unmodifiable list
     List<ClientStreamTracer.Factory> streamTracerFactories;
     Boolean waitForReady;
-    Boolean waitForStreamAuth;
+    Boolean waitForStreamFunctionalReady;
     Integer maxInboundMessageSize;
     Integer maxOutboundMessageSize;
     Integer onReadyThreshold;
@@ -223,55 +223,55 @@ public final class CallOptions {
   }
 
   /**
-   * Enables 'wait for stream auth' for streaming calls. When enabled, the client will block
-   * until the server sends response headers before allowing the application to send messages.
-   * This is useful for stream-level authentication where the server validates credentials
-   * (e.g., JWT) before accepting messages.
+   * Enables 'wait for stream functional readiness' for streaming calls. When enabled, the client will block
+   * until the server sends response headers (x-stream-ready) before allowing the application to send messages.
+   * This is useful for stream-level initialization where the server validates credentials
+   * (e.g., JWT) or performs setup before accepting messages.
    *
-   * <p>If authentication fails, the client will receive an error before any messages are sent,
+   * <p>If initialization fails, the client will receive an error before any messages are sent,
    * preventing wasted requests.
    *
-   * <p>Note: This requires the server to explicitly send headers after authentication succeeds.
+   * <p>Note: This requires the server to explicitly send headers after initialization succeeds.
    * If the server does not send early headers, the call will block until timeout or the first
    * response message.
    *
    */
   @ExperimentalApi("https://github.com/grpc/grpc-java/issues/12628")
-  public CallOptions withWaitForStreamAuth() {
+  public CallOptions withWaitForStreamFunctionalReady() {
     Builder builder = toBuilder(this);
-    builder.waitForStreamAuth = Boolean.TRUE;
+    builder.waitForStreamFunctionalReady = Boolean.TRUE;
     return builder.build();
   }
 
   /**
-   * Disables 'wait for stream auth' feature for the call.
-   * This method should be rarely used because the default is without 'wait for stream auth'.
+   * Disables 'wait for stream functional readiness' feature for the call.
+   * This method should be rarely used because the default is without 'wait for stream functional readiness'.
    *
    * @since 1.70.0
    */
   @ExperimentalApi("https://github.com/grpc/grpc-java/issues/12628")
-  public CallOptions withoutWaitForStreamAuth() {
+  public CallOptions withoutWaitForStreamFunctionalReady() {
     Builder builder = toBuilder(this);
-    builder.waitForStreamAuth = Boolean.FALSE;
+    builder.waitForStreamFunctionalReady = Boolean.FALSE;
     return builder.build();
   }
 
   /**
-   * Returns whether 'wait for stream auth' option is enabled for the call.
+   * Returns whether 'wait for stream functional readiness' option is enabled for the call.
    *
    * @since 1.70.0
    */
   @ExperimentalApi("https://github.com/grpc/grpc-java/issues/12628")
-  public boolean isWaitForStreamAuth() {
-    return Boolean.TRUE.equals(waitForStreamAuth);
+  public boolean isWaitForStreamFunctionalReady() {
+    return Boolean.TRUE.equals(waitForStreamFunctionalReady);
   }
 
   /**
-   * Returns the internal wait for stream auth value, may be null.
+   * Returns the internal wait for stream functional readiness value, may be null.
    */
   @Nullable
-  Boolean getWaitForStreamAuth() {
-    return waitForStreamAuth;
+  Boolean getWaitForStreamFunctionalReady() {
+    return waitForStreamFunctionalReady;
   }
 
   /**
@@ -577,7 +577,7 @@ public final class CallOptions {
     builder.customOptions = other.customOptions;
     builder.streamTracerFactories = other.streamTracerFactories;
     builder.waitForReady = other.waitForReady;
-    builder.waitForStreamAuth = other.waitForStreamAuth;
+    builder.waitForStreamFunctionalReady = other.waitForStreamFunctionalReady;
     builder.maxInboundMessageSize = other.maxInboundMessageSize;
     builder.maxOutboundMessageSize = other.maxOutboundMessageSize;
     builder.onReadyThreshold = other.onReadyThreshold;
@@ -594,7 +594,7 @@ public final class CallOptions {
         .add("compressorName", compressorName)
         .add("customOptions", Arrays.deepToString(customOptions))
         .add("waitForReady", isWaitForReady())
-        .add("waitForStreamAuth", isWaitForStreamAuth())
+        .add("waitForStreamFunctionalReady", isWaitForStreamFunctionalReady())
         .add("maxInboundMessageSize", maxInboundMessageSize)
         .add("maxOutboundMessageSize", maxOutboundMessageSize)
         .add("onReadyThreshold", onReadyThreshold)

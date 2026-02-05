@@ -125,13 +125,13 @@ public final class ClientCalls {
    * <p>If the provided {@code responseObserver} is an instance of {@link ClientResponseObserver},
    * {@code beforeStart()} will be called.
    *
-   * <p>If {@code callOptions.isWaitForStreamAuth()} is true, the returned StreamObserver will
+   * <p>If {@code callOptions.isWaitForStreamFunctionalReady()} is true, the returned StreamObserver will
    * block on {@code onNext()} until response headers are received from the server, indicating
-   * that stream-level authentication has completed.
+   * that stream-level functional readiness has been confirmed.
    *
    * @param call the client call
    * @param responseObserver the observer for responses
-   * @param callOptions the call options which may include waitForStreamAuth
+   * @param callOptions the call options which may include waitForStreamFunctionalReady
    * @return request stream observer. It will extend {@link ClientCallStreamObserver}
    * @since 1.70.0
    */
@@ -143,7 +143,7 @@ public final class ClientCalls {
     checkNotNull(responseObserver, "responseObserver");
     checkNotNull(callOptions, "callOptions");
     return asyncStreamingRequestCall(
-        call, responseObserver, false, callOptions.isWaitForStreamAuth());
+        call, responseObserver, false, callOptions.isWaitForStreamFunctionalReady());
   }
 
   /**
@@ -168,13 +168,13 @@ public final class ClientCalls {
    * <p>If the provided {@code responseObserver} is an instance of {@link ClientResponseObserver},
    * {@code beforeStart()} will be called.
    *
-   * <p>If {@code callOptions.isWaitForStreamAuth()} is true, the returned StreamObserver will
+   * <p>If {@code callOptions.isWaitForStreamFunctionalReady()} is true, the returned StreamObserver will
    * block on {@code onNext()} until response headers are received from the server, indicating
-   * that stream-level authentication has completed.
+   * that stream-level functional readiness has been confirmed.
    *
    * @param call the client call
    * @param responseObserver the observer for responses
-   * @param callOptions the call options which may include waitForStreamAuth
+   * @param callOptions the call options which may include waitForStreamFunctionalReady
    * @return request stream observer. It will extend {@link ClientCallStreamObserver}
    * @since 1.70.0
    */
@@ -186,7 +186,7 @@ public final class ClientCalls {
     checkNotNull(responseObserver, "responseObserver");
     checkNotNull(callOptions, "callOptions");
     return asyncStreamingRequestCall(
-        call, responseObserver, true, callOptions.isWaitForStreamAuth());
+        call, responseObserver, true, callOptions.isWaitForStreamFunctionalReady());
   }
 
   /**
@@ -480,9 +480,9 @@ public final class ClientCalls {
       ClientCall<ReqT, RespT> call,
       StreamObserver<RespT> responseObserver,
       boolean streamingResponse,
-      boolean waitForStreamAuth) {
+      boolean waitForStreamFunctionalReady) {
     CallToStreamObserverAdapter<ReqT> adapter = new CallToStreamObserverAdapter<>(
-        call, streamingResponse, waitForStreamAuth);
+        call, streamingResponse, waitForStreamFunctionalReady);
     StreamObserverToCallListenerAdapter<ReqT, RespT> listener =
         new StreamObserverToCallListenerAdapter<>(responseObserver, adapter);
     adapter.setListener(listener);
@@ -520,7 +520,7 @@ public final class ClientCalls {
     private boolean frozen;
     private final ClientCall<ReqT, ?> call;
     private final boolean streamingResponse;
-    private final boolean waitForStreamAuth;
+    private final boolean waitForStreamFunctionalReady;
     private final CountDownLatch headersReceivedLatch;
     private Runnable onReadyHandler;
     private int initialRequest = 1;
@@ -531,11 +531,11 @@ public final class ClientCalls {
 
     // Non private to avoid synthetic class
     CallToStreamObserverAdapter(ClientCall<ReqT, ?> call, boolean streamingResponse,
-        boolean waitForStreamAuth) {
+        boolean waitForStreamFunctionalReady) {
       this.call = call;
       this.streamingResponse = streamingResponse;
-      this.waitForStreamAuth = waitForStreamAuth;
-      this.headersReceivedLatch = waitForStreamAuth ? new CountDownLatch(1) : null;
+      this.waitForStreamFunctionalReady = waitForStreamFunctionalReady;
+      this.headersReceivedLatch = waitForStreamFunctionalReady ? new CountDownLatch(1) : null;
     }
 
     void setListener(StartableListener<?> listener) {
@@ -554,11 +554,11 @@ public final class ClientCalls {
     }
 
     /**
-     * Waits for headers to be received if waitForStreamAuth is enabled.
+     * Waits for headers to be received if waitForStreamFunctionalReady is enabled.
      * Throws StatusRuntimeException if the stream is closed with an error before headers arrive.
      */
     private void awaitHeadersIfNeeded() {
-      if (!waitForStreamAuth || headersReceivedLatch == null) {
+      if (!waitForStreamFunctionalReady || headersReceivedLatch == null) {
         return;
       }
       
@@ -584,7 +584,7 @@ public final class ClientCalls {
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw Status.CANCELLED
-            .withDescription("Interrupted while waiting for stream authentication")
+            .withDescription("Interrupted while waiting for stream functional readiness")
             .withCause(e)
             .asRuntimeException();
       }
